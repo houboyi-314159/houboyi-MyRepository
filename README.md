@@ -50,7 +50,7 @@
 ## 联系
 
 - GitHub: [@houboyi](https://github.com/houboyi)
-- （可在此处添加其他联系方式）
+- Email: houboyi_314159@163.com
 
 ---
 
