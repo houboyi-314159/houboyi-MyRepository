@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>2D航母模拟器 - 组装+发射</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #001133;
+            font-family: Arial, sans-serif;
+            color: white;
+            min-height: 100vh;
+        }
+        h1 { margin: 15px 0; }
+        canvas {
+            border: 3px solid #00aaff;
+            background: #0077be;
+        }
+        .panel {
+            margin: 10px;
+            padding: 15px;
+            background: rgba(0,170,255,0.2);
+            border-radius: 10px;
+        }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #00aaff;
+            border: none;
+            color: white;
+            border-radius: 5px;
+        }
+        button:hover { background: #0088cc; }
+        .info { margin-top: 10px; text-align: center; }
+        .installed { color: #00ff88; }
+    </style>
+</head>
+<body>
+    <h1>🚢 2D战舰模拟器 - 组装模式</h1>
+    <a href="/">返回</a>
+    <div class="panel">
+        <h3>📦 组装炮台</h3>
+        <div class="controls">
+            <button onclick="installTurret('basic')">安装基础炮台</button>
+            <button onclick="installTurret('cannon')">安装加农炮</button>
+            <button onclick="installTurret('missile')">安装导弹架</button>
+        </div>
+        <p class="info">已安装：<span id="installed" class="installed">无</span></p>
+    </div>
+    
+    <canvas id="canvas" width="900" height="350"></canvas>
+    
+    <div class="panel controls">
+        <button onclick="moveLeft()">⬅️ 左移</button>
+        <button onclick="fire()">💥 开火</button>
+        <button onclick="moveRight()">➡️ 右移</button>
+    </div>
+    
+    <p class="info">无重力模式：左右自由移动 | 点击"安装"给航母加武器</p>
+
+    <script>
+        // ===== 游戏状态 =====
+        let ship = { x: 100, y: 155, width: 120, height: 40 };
+        let turrets = [];  // 已安装的炮台
+        let projectiles = [];
+
+        // ===== 画布 =====
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // ===== 安装炮台（最多3个）=====
+        function installTurret(type) {
+            const names = {
+                basic: '基础炮台',
+                cannon: '加农炮', 
+                missile: '导弹架'
+            };
+        
+            if (turrets.length >= 3) {
+                alert('🚫 航母已满！最多只能装3个炮台！');
+                return;
+            }
+
+            turrets.push({ type: type });
+            document.getElementById('installed').textContent = 
+                turrets.map(t => names[t.type]).join(', ') || '无';
+        }
+
+        // ===== 绘制海洋背景 =====
+        function drawOcean() {
+            let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0099cc');
+            gradient.addColorStop(0.5, '#0077be');
+            gradient.addColorStop(1, '#005588');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 20) {
+                    let y = 50 + i * 40 + Math.sin((x + Date.now()/500) * 0.02) * 10;
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+
+        // ===== 绘制船和炮台 =====
+        function drawShip() {
+            // 船身
+            ctx.fillStyle = '#336699';
+            ctx.fillRect(ship.x, ship.y, ship.width, ship.height);
+            
+            // 甲板
+            ctx.fillStyle = '#555';
+            ctx.fillRect(ship.x + 10, ship.y - 12, ship.width - 20, 12);
+            
+            // 已安装炮台
+            turrets.forEach((turret, index) => {
+                let tx = ship.x + 20 + index * 35;
+                let ty = ship.y - 25;
+                
+                if (turret.type === 'basic') {
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(tx, ty, 20, 18);
+                } else if (turret.type === 'cannon') {
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(tx, ty, 25, 20);
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(tx + 5, ty - 5, 15, 8);
+                } else if (turret.type === 'missile') {
+                    ctx.fillStyle = '#663300';
+                    ctx.fillRect(tx, ty, 22, 15);
+                    ctx.fillStyle = '#ff4400';
+                    ctx.fillRect(tx + 8, ty - 8, 6, 10);
+                }
+            });
+        }
+
+        function drawProjectile(p) {
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // ===== 游戏循环 =====
+        function gameLoop() {
+            drawOcean();
+            drawShip();
+            
+            projectiles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                drawProjectile(p);
+                
+                if (p.x > canvas.width || p.x < 0 || p.y > canvas.height || p.y < 0) {
+                    projectiles.splice(i, 1);
+                }
+            });
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ===== 控制 =====
+        function moveLeft() {
+            if (ship.x > 5) ship.x -= 15;
+        }
+        function moveRight() {
+            if (ship.x < canvas.width - ship.width - 5) ship.x += 15;
+        }
+
+        // ===== 发射炮弹（所有炮台同时开火）=====
+        function fire() {
+            if (turrets.length === 0) {
+                alert('先安装炮台！');
+                return;
+            }
+
+            turrets.forEach((turret, index) => {
+                let px = ship.x + 20 + index * 35 + 10;
+                let py = ship.y - 25;
+
+                let colors = { basic: '#ffff00', cannon: '#ff8800', missile: '#ff0000' };
+                let radii = { basic: 6, cannon: 8, missile: 10 };
+
+                projectiles.push({
+                    x: px,
+                    y: py,
+                    vx: 8,
+                    vy: 0,
+                    color: colors[turret.type],
+                    radius: radii[turret.type]
+                });
+            });
+        }
+
+        // ===== 启动 =====
+        gameLoop();
+    </script>
+</body>
+</html>

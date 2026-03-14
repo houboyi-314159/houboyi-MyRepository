@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>战舰模拟器 - 主入口</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(#001133, #003366);
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        h1 { 
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        .subtitle {
+            color: #00aaff;
+            margin-bottom: 40px;
+        }
+        .menu { display: flex; gap: 30px; }
+        .card {
+            padding: 30px 50px;
+            background: rgba(0,170,255,0.2);
+            border: 2px solid #00aaff;
+            border-radius: 15px;
+            text-align: center;
+            text-decoration: none;
+            color: white;
+            transition: all 0.3s;
+        }
+        .card:hover {
+            background: rgba(0,170,255,0.4);
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(0,170,255,0.5);
+        }
+        .card h2 { margin-bottom: 10px; }
+        .card p { color: #aaa; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>🚢 战舰模拟器</h1>
+    <p class="subtitle">2D航空母舰模拟器 - 无重力战斗</p>
+    
+    <div class="menu">
+        <a href="/game" class="card">
+            <h2>🎮 经典模式</h2>
+            <p>组装炮台 + 发射练习</p>
+        </a>
+        <a href="/game_new" class="card">
+            <h2>⚔️ 战斗模式</h2>
+            <p>对抗敌舰 + 爆炸效果 + 血条</p>
+        </a>
+    </div>
+</body>
+</html>
