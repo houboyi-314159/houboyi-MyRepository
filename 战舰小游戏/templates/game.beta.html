@@ -65,7 +65,7 @@
 
     <!-- 鱼雷管控制面板 -->
     <div class="torpedo-panel turret-panel">
-        <h3>🚀 鱼雷管（1个）</h3>
+        <h3>🚀 鱼雷管（两侧水下）</h3>
         <div class="turret-buttons">
             <button class="turret-btn" style="background:#006600" onclick="buyTorpedo('normal')">购买普通鱼雷（3💰）</button>
             <button class="turret-btn" style="background:#990000" onclick="buyTorpedo('super')">购买超级鱼雷（7💰）</button>
@@ -85,18 +85,17 @@
     <script>
         // ===== 游戏状态 =====
         let ship = { x: 100, y: 155, width: 120, height: 40, health: 100 };
-        let enemy = { x: 700, y: 155, width: 120, height: 40, health: 100 }; // 敌人血量 = 玩家血量
+        let enemy = { x: 700, y: 155, width: 120, height: 40, health: 100 };
         let turrets = [];
         let enemyTurrets = [];
         let projectiles = [];
         let explosions = [];
         let gold = 0;
-        let torpedoType = null; // 'normal' 或 'super'
+        let torpedoType = null;
 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // 射程设置
         const RANGE = { basic: 465, cannon: 620, missile: 800 };
         const ENEMY_RANGE = { basic: 465, cannon: 620, missile: 800 };
         const DAMAGE = { basic: 5, cannon: 10, missile: 20, normal_torpedo: 15, super_torpedo: 30 };
@@ -106,13 +105,13 @@
         let lastFireTime = {};
         let lastEnemyFireTime = {};
 
-        // ===== 后端 API 基础 URL =====
-        const API_BASE = ''; // 同域，留空
+        const API_BASE = '';
+        const SECRET_KEY = "battle_sim_2026_v1";
 
         // ===== 获取金币 =====
         async function fetchGold() {
             const dataStr = "get_gold";
-            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            const signature = CryptoJS.HmacSHA256(dataStr, SECRET_KEY).toString(CryptoJS.enc.Hex);
             try {
                 const res = await fetch(API_BASE + '/api/get_gold', {
                     method: 'POST',
@@ -132,12 +131,12 @@
         // ===== 增加金币 =====
         async function addGold(amount) {
             const dataStr = `add_gold:${amount}`;
-            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            const signature = CryptoJS.HmacSHA256(dataStr, SECRET_KEY).toString(CryptoJS.enc.Hex);
             try {
                 const res = await fetch(API_BASE + '/api/add_gold', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: dataStr, signature: signature })
+                    body: JSON.stringify({ data: dataStr, signature: signature, amount: amount })
                 });
                 const result = await res.json();
                 if (res.ok) {
@@ -157,7 +156,7 @@
                 return;
             }
             const dataStr = `buy_torpedo:${type}`;
-            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            const signature = CryptoJS.HmacSHA256(dataStr, SECRET_KEY).toString(CryptoJS.enc.Hex);
             try {
                 const res = await fetch(API_BASE + '/api/buy_torpedo', {
                     method: 'POST',
@@ -179,12 +178,10 @@
             }
         }
 
-        // ===== 更新金币显示 =====
         function updateGoldDisplay() {
             document.getElementById('goldDisplay').textContent = gold;
         }
 
-        // ===== 初始化敌人炮台 =====
         function initEnemyTurrets() {
             enemyTurrets = [];
             const types = ['basic', 'cannon', 'missile'];
@@ -197,7 +194,6 @@
             enemyTurrets.forEach(t => lastEnemyFireTime[t.type] = 0);
         }
 
-        // ===== 安装炮台 =====
         function installTurret(type) {
             const names = { basic: '基础炮台', cannon: '加农炮', missile: '导弹架' };
             if (turrets.length >= 3) {
@@ -210,7 +206,6 @@
             lastFireTime[type] = 0;
         }
 
-        // ===== 绘制海洋 =====
         function drawOcean() {
             let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
             gradient.addColorStop(0, '#0099cc');
@@ -232,7 +227,6 @@
             }
         }
 
-        // ===== 绘制船和炮台 =====
         function drawShip(obj, color, isEnemy) {
             ctx.fillStyle = color;
             ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
@@ -259,24 +253,37 @@
             });
         }
 
-        // ===== 绘制鱼雷管 =====
+        // ===== 鱼雷管在水里（两侧底部） =====
         function drawTorpedoTube() {
-            let tx = ship.x + ship.width / 2 - 10;
-            let ty = ship.y - 30;
-            ctx.fillStyle = '#444';
-            ctx.fillRect(tx, ty, 20, 25);
+            // 左侧鱼雷管（水下）
+            let leftTx = ship.x - 5;
+            let leftTy = ship.y + ship.height;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(leftTx, leftTy, 10, 15);
             ctx.fillStyle = '#222';
-            ctx.fillRect(tx + 5, ty - 5, 10, 8);
-            // 如果有鱼雷，显示尖端
+            ctx.fillRect(leftTx + 2, leftTy + 5, 6, 5);
+
+            // 右侧鱼雷管（水下）
+            let rightTx = ship.x + ship.width - 5;
+            let rightTy = ship.y + ship.height;
+            ctx.fillStyle = '#333';
+            ctx.fillRect(rightTx, rightTy, 10, 15);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(rightTx + 2, rightTy + 5, 6, 5);
+
+            // 如果有鱼雷，从管口射出（水中）
             if (torpedoType) {
-                ctx.fillStyle = torpedoType === 'normal' ? '#00ff00' : '#ff0000';
+                let color = torpedoType === 'normal' ? '#00ff00' : '#ff0000';
+                ctx.fillStyle = color;
                 ctx.beginPath();
-                ctx.arc(tx + 10, ty - 8, 5, 0, Math.PI * 2);
+                ctx.ellipse(leftTx + 5, leftTy + 15, 6, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(rightTx + 5, rightTy + 15, 6, 3, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
 
-        // ===== 绘制炮弹/鱼雷 =====
         function drawProjectile(p) {
             ctx.save();
             ctx.translate(p.x, p.y);
@@ -319,16 +326,6 @@
             ctx.restore();
         }
 
-        // ===== 爆炸效果 =====
-        function drawExplosion(e) {
-            ctx.fillStyle = e.color;
-            ctx.globalAlpha = e.alpha;
-            ctx.beginPath();
-            ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1;
-        }
-
         function createExplosion(x, y, color) {
             explosions.push({ x, y, radius: 5, maxRadius: 30, color, alpha: 1 });
         }
@@ -341,7 +338,15 @@
             });
         }
 
-        // ===== 碰撞检测 =====
+        function drawExplosion(e) {
+            ctx.fillStyle = e.color;
+            ctx.globalAlpha = e.alpha;
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
         function checkCollisions() {
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 let p = projectiles[i];
@@ -357,7 +362,7 @@
                         updateHealthBars();
                         if (enemy.health <= 0) {
                             alert('🎉 胜利！敌舰被击沉！');
-                            addGold(1); // 打赢+1金币
+                            addGold(1);
                             setTimeout(() => location.reload(), 1500);
                         }
                         continue;
@@ -378,7 +383,7 @@
                 }
 
                 let range = p.fromPlayer ? RANGE[p.type] : ENEMY_RANGE[p.type];
-                if (!range) range = 500; // 鱼雷默认射程
+                if (!range) range = 500;
                 let distance = p.fromPlayer ? (p.x - p.startX) : (p.startX - p.x);
                 if (distance >= range) {
                     createExplosion(p.x, p.y, p.color);
@@ -396,26 +401,22 @@
             document.getElementById('enemyHealthBar').style.width = enemy.health + '%';
         }
 
-        // ===== 游戏主循环 =====
         function gameLoop() {
             drawOcean();
             drawShip(ship, '#336699', false);
             drawShip(enemy, '#993333', true);
-            drawTorpedoTube(); // 绘制鱼雷管
-            
+            drawTorpedoTube();
             projectiles.forEach((p, i) => {
                 p.x += p.vx;
                 p.y += p.vy;
                 drawProjectile(p);
             });
-            
             updateExplosions();
             explosions.forEach(e => drawExplosion(e));
             checkCollisions();
             requestAnimationFrame(gameLoop);
         }
 
-        // ===== 控制 =====
         function moveLeft() {
             if (ship.x > 5) ship.x -= 15;
         }
@@ -423,7 +424,6 @@
             if (ship.x < canvas.width - ship.width - 5) ship.x += 15;
         }
 
-        // ===== 发射普通/导弹炮弹 =====
         function fire() {
             if (turrets.length === 0) {
                 alert('先安装炮台！');
@@ -451,30 +451,29 @@
             });
         }
 
-        // ===== 发射鱼雷 =====
         function fireTorpedo() {
             if (!torpedoType) {
                 alert('请先购买鱼雷！');
                 return;
             }
-            let px = ship.x + ship.width / 2;
-            let py = ship.y - 30;
+            let leftPx = ship.x - 5 + 5;
+            let rightPx = ship.x + ship.width - 5 + 5;
+            let py = ship.y + ship.height + 15;
             let type = torpedoType;
             let color = type === 'normal' ? '#00ff00' : '#ff0000';
             let radius = type === 'normal' ? 8 : 10;
             projectiles.push({
-                x: px, y: py, vx: SPEED[type + '_torpedo'], vy: 0,
-                color: color,
-                radius: radius,
-                type: type + '_torpedo',
-                fromPlayer: true,
-                startX: px
+                x: leftPx, y: py, vx: SPEED[type + '_torpedo'], vy: 0,
+                color: color, radius: radius, type: type + '_torpedo', fromPlayer: true, startX: leftPx
+            });
+            projectiles.push({
+                x: rightPx, y: py, vx: SPEED[type + '_torpedo'], vy: 0,
+                color: color, radius: radius, type: type + '_torpedo', fromPlayer: true, startX: rightPx
             });
             torpedoType = null;
             document.getElementById('torpedoStatus').textContent = '无';
         }
 
-        // ===== 敌人发射炮弹（射速已调慢） =====
         setInterval(() => {
             if (enemyTurrets.length === 0) return;
             let now = Date.now();
@@ -497,11 +496,10 @@
                     lastEnemyFireTime[turret.type] = now;
                 }
             });
-        }, 300); // ← 敌人射速变慢（300ms）
+        }, 300);
 
-        // ===== 启动 =====
         initEnemyTurrets();
-        fetchGold(); // 启动时获取金币
+        fetchGold();
         gameLoop();
     </script>
 </body>
