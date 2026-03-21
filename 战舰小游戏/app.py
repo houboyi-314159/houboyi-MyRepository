@@ -2,25 +2,21 @@ import flask
 from flask import request, jsonify
 import hmac
 import hashlib
-import time
 
 app = flask.Flask(__name__)
 
 # ========== 配置 ==========
-SECRET_KEY = "my_super_secret_123"  # 密钥，不要泄露给前端
+SECRET_KEY = "my_super_secret_123"
 # ==========================
 
-# 简单存储金币（演示用全局变量，重启会重置；生产环境请用数据库）
 user_gold = 0
 
 
 def verify_signature(data):
-    """
-    验证 HMAC-SHA256 签名
-    前端应发送 JSON: { "data": "...", "signature": "..." }
-    其中 data 是字符串化的业务数据（如 "add_gold:1" 或 "buy_torpedo:normal"）
-    """
     try:
+        if not isinstance(data, dict):
+            print("verify_signature: data is not dict")
+            return False
         received_data = data.get("data", "")
         received_sig = data.get("signature", "")
         expected_sig = hmac.new(
@@ -56,37 +52,49 @@ def game_beta():
 
 
 # ========== 金币 API ==========
-
 @app.route('/api/get_gold', methods=['POST'])
 def get_gold():
+    print("--- get_gold called ---")
     json_data = request.get_json()
-    if not json_data or not verify_signature(json_data):
+    if not json_data:
+        print("get_gold: no json data")
+        return jsonify({"error": "No JSON data"}), 400
+    if not verify_signature(json_data):
+        print("get_gold: invalid signature")
         return jsonify({"error": "Invalid signature"}), 403
-
     return jsonify({"gold": user_gold})
 
 
 @app.route('/api/add_gold', methods=['POST'])
 def add_gold():
-    json_data = request.get_json()
-    if not json_data or not verify_signature(json_data):
-        return jsonify({"error": "Invalid signature"}), 403
-
-    amount = json_data.get("amount", 0)
     global user_gold
+    print("--- add_gold called ---")
+    json_data = request.get_json()
+    if not json_data:
+        print("add_gold: no json data")
+        return jsonify({"error": "No JSON data"}), 400
+    if not verify_signature(json_data):
+        print("add_gold: invalid signature")
+        return jsonify({"error": "Invalid signature"}), 403
+    amount = json_data.get("amount", 0)
     user_gold += amount
+    print(f"add_gold: added {amount}, total {user_gold}")
     return jsonify({"gold": user_gold})
 
 
 @app.route('/api/buy_torpedo', methods=['POST'])
 def buy_torpedo():
+    global user_gold
+    print("--- buy_torpedo called ---")
     json_data = request.get_json()
-    if not json_data or not verify_signature(json_data):
+    if not json_data:
+        print("buy_torpedo: no json data")
+        return jsonify({"error": "No JSON data"}), 400
+    if not verify_signature(json_data):
+        print("buy_torpedo: invalid signature")
         return jsonify({"error": "Invalid signature"}), 403
 
-    torpedo_type = json_data.get("type", "")  # 'normal' 或 'super'
-    global user_gold
-
+    torpedo_type = json_data.get("type", "")
     price = 0
     success = False
 
@@ -104,6 +112,7 @@ def buy_torpedo():
         return jsonify({"success": False, "message": "未知鱼雷类型"}), 400
 
     if success:
+        print(f"buy_torpedo: bought {torpedo_type}, remaining {user_gold}")
         return jsonify({"success": True, "gold": user_gold})
     else:
         return jsonify({"success": False, "message": "金币不足"}), 400

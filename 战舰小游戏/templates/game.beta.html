@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>战舰模拟器 - 战斗模式 Beta</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body { background: #001133; font-family: Arial, sans-serif; color: white; text-align: center; }
+        h1 { margin: 15px 0; }
+        canvas { border: 3px solid #00aaff; background: #0077be; display: block; margin: 0 auto; }
+        .health-container { display: flex; justify-content: space-around; margin: 10px auto; width: 900px; }
+        .health-box { width: 200px; }
+        .health-bar-bg { width: 200px; height: 20px; background: #333; border-radius: 10px; overflow: hidden; margin: 5px auto; }
+        .health-bar { height: 100%; transition: width 0.3s; }
+        .player-health { background: #00ff88; }
+        .enemy-health { background: #ff4444; }
+        .controls { margin: 10px; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; cursor: pointer; }
+        .turret-panel {
+            background: rgba(0,170,255,0.2);
+            border: 2px solid #00aaff;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px auto;
+            width: 900px;
+        }
+        .turret-panel h3 { margin-bottom: 10px; }
+        .turret-buttons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .turret-btn { padding: 10px 15px; font-size: 14px; border: none; border-radius: 5px; cursor: pointer; color: white; }
+        .btn-basic { background: #888800; }
+        .btn-cannon { background: #ff8800; }
+        .btn-missile { background: #ff0000; }
+        .installed-list { margin-top: 10px; color: #00ff88; }
+        .gold-display { margin: 10px auto; font-size: 20px; color: #ffd700; }
+        .torpedo-panel { margin: 10px auto; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+    <h1>⚔️ 战舰模拟器 - 战斗模式 Beta</h1>
+    
+    <!-- 金币显示 -->
+    <div class="gold-display">💰 金币：<span id="goldDisplay">0</span></div>
+    
+    <div class="health-container">
+        <div class="health-box">
+            <p>玩家航母</p>
+            <div class="health-bar-bg"><div id="playerHealthBar" class="health-bar player-health" style="width: 100%"></div></div>
+        </div>
+        <div class="health-box">
+            <p>敌方航母</p>
+            <div class="health-bar-bg"><div id="enemyHealthBar" class="health-bar enemy-health" style="width: 100%"></div></div>
+        </div>
+    </div>
+
+    <div class="turret-panel">
+        <h3>📦 组装炮台（最多3个）</h3>
+        <div class="turret-buttons">
+            <button class="turret-btn btn-basic" onclick="installTurret('basic')">基础炮台</button>
+            <button class="turret-btn btn-cannon" onclick="installTurret('cannon')">加农炮</button>
+            <button class="turret-btn btn-missile" onclick="installTurret('missile')">导弹架</button>
+        </div>
+        <p class="installed-list">已安装：<span id="installed">无</span></p>
+    </div>
+
+    <!-- 鱼雷管控制面板 -->
+    <div class="torpedo-panel turret-panel">
+        <h3>🚀 鱼雷管（1个）</h3>
+        <div class="turret-buttons">
+            <button class="turret-btn" style="background:#006600" onclick="buyTorpedo('normal')">购买普通鱼雷（3💰）</button>
+            <button class="turret-btn" style="background:#990000" onclick="buyTorpedo('super')">购买超级鱼雷（7💰）</button>
+            <button class="turret-btn" style="background:#00aaff" onclick="fireTorpedo()">发射鱼雷</button>
+        </div>
+        <p class="installed-list">鱼雷状态：<span id="torpedoStatus">无</span></p>
+    </div>
+    
+    <canvas id="canvas" width="900" height="350"></canvas>
+    
+    <div class="controls">
+        <button onclick="moveLeft()">⬅️ 左移</button>
+        <button onclick="fire()">💥 开火</button>
+        <button onclick="moveRight()">➡️ 右移</button>
+    </div>
+
+    <script>
+        // ===== 游戏状态 =====
+        let ship = { x: 100, y: 155, width: 120, height: 40, health: 100 };
+        let enemy = { x: 700, y: 155, width: 120, height: 40, health: 100 }; // 敌人血量 = 玩家血量
+        let turrets = [];
+        let enemyTurrets = [];
+        let projectiles = [];
+        let explosions = [];
+        let gold = 0;
+        let torpedoType = null; // 'normal' 或 'super'
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 射程设置
+        const RANGE = { basic: 465, cannon: 620, missile: 800 };
+        const ENEMY_RANGE = { basic: 465, cannon: 620, missile: 800 };
+        const DAMAGE = { basic: 5, cannon: 10, missile: 20, normal_torpedo: 15, super_torpedo: 30 };
+        const COOLDOWN = { basic: 300, cannon: 600, missile: 1000 };
+        const SPEED = { basic: 8, cannon: 7, missile: 6, normal_torpedo: 5, super_torpedo: 4 };
+
+        let lastFireTime = {};
+        let lastEnemyFireTime = {};
+
+        // ===== 后端 API 基础 URL =====
+        const API_BASE = ''; // 同域，留空
+
+        // ===== 获取金币 =====
+        async function fetchGold() {
+            const dataStr = "get_gold";
+            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            try {
+                const res = await fetch(API_BASE + '/api/get_gold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataStr, signature: signature })
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    gold = result.gold;
+                    updateGoldDisplay();
+                }
+            } catch (e) {
+                console.error("获取金币失败", e);
+            }
+        }
+
+        // ===== 增加金币 =====
+        async function addGold(amount) {
+            const dataStr = `add_gold:${amount}`;
+            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            try {
+                const res = await fetch(API_BASE + '/api/add_gold', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataStr, signature: signature })
+                });
+                const result = await res.json();
+                if (res.ok) {
+                    gold = result.gold;
+                    updateGoldDisplay();
+                }
+            } catch (e) {
+                console.error("增加金币失败", e);
+            }
+        }
+
+        // ===== 购买鱼雷 =====
+        async function buyTorpedo(type) {
+            const price = (type === 'normal') ? 3 : 7;
+            if (gold < price) {
+                alert('金币不足！');
+                return;
+            }
+            const dataStr = `buy_torpedo:${type}`;
+            const signature = CryptoJS.HmacSHA256(dataStr, "my_super_secret_123").toString(CryptoJS.enc.Hex);
+            try {
+                const res = await fetch(API_BASE + '/api/buy_torpedo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: dataStr, signature: signature, type: type })
+                });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    gold = result.gold;
+                    torpedoType = type;
+                    updateGoldDisplay();
+                    document.getElementById('torpedoStatus').textContent = 
+                        type === 'normal' ? '普通鱼雷就绪' : '超级鱼雷就绪';
+                } else {
+                    alert(result.message || '购买失败');
+                }
+            } catch (e) {
+                console.error("购买鱼雷失败", e);
+            }
+        }
+
+        // ===== 更新金币显示 =====
+        function updateGoldDisplay() {
+            document.getElementById('goldDisplay').textContent = gold;
+        }
+
+        // ===== 初始化敌人炮台 =====
+        function initEnemyTurrets() {
+            enemyTurrets = [];
+            const types = ['basic', 'cannon', 'missile'];
+            const count = Math.floor(Math.random() * 3) + 1;
+            for (let i = 0; i < count; i++) {
+                const type = types[Math.floor(Math.random() * types.length)];
+                enemyTurrets.push({ type: type });
+            }
+            lastEnemyFireTime = {};
+            enemyTurrets.forEach(t => lastEnemyFireTime[t.type] = 0);
+        }
+
+        // ===== 安装炮台 =====
+        function installTurret(type) {
+            const names = { basic: '基础炮台', cannon: '加农炮', missile: '导弹架' };
+            if (turrets.length >= 3) {
+                alert('🚫 航母已满！最多只能装3个炮台！');
+                return;
+            }
+            turrets.push({ type: type });
+            document.getElementById('installed').textContent = 
+                turrets.map(t => names[t.type]).join(', ') || '无';
+            lastFireTime[type] = 0;
+        }
+
+        // ===== 绘制海洋 =====
+        function drawOcean() {
+            let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0099cc');
+            gradient.addColorStop(0.5, '#0077be');
+            gradient.addColorStop(1, '#005588');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 20) {
+                    let y = 50 + i * 40 + Math.sin((x + Date.now()/500) * 0.02) * 10;
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+
+        // ===== 绘制船和炮台 =====
+        function drawShip(obj, color, isEnemy) {
+            ctx.fillStyle = color;
+            ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+            ctx.fillStyle = '#555';
+            ctx.fillRect(obj.x + 10, obj.y - 12, obj.width - 20, 12);
+            const turList = isEnemy ? enemyTurrets : turrets;
+            turList.forEach((turret, index) => {
+                let tx = obj.x + 20 + index * 35;
+                let ty = obj.y - 25;
+                if (turret.type === 'basic') {
+                    ctx.fillStyle = '#888800';
+                    ctx.fillRect(tx, ty, 20, 18);
+                } else if (turret.type === 'cannon') {
+                    ctx.fillStyle = '#ff8800';
+                    ctx.fillRect(tx, ty, 25, 20);
+                    ctx.fillStyle = '#aa5500';
+                    ctx.fillRect(tx + 5, ty - 5, 15, 8);
+                } else if (turret.type === 'missile') {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(tx, ty, 22, 15);
+                    ctx.fillStyle = '#ff4400';
+                    ctx.fillRect(tx + 8, ty - 8, 6, 10);
+                }
+            });
+        }
+
+        // ===== 绘制鱼雷管 =====
+        function drawTorpedoTube() {
+            let tx = ship.x + ship.width / 2 - 10;
+            let ty = ship.y - 30;
+            ctx.fillStyle = '#444';
+            ctx.fillRect(tx, ty, 20, 25);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(tx + 5, ty - 5, 10, 8);
+            // 如果有鱼雷，显示尖端
+            if (torpedoType) {
+                ctx.fillStyle = torpedoType === 'normal' ? '#00ff00' : '#ff0000';
+                ctx.beginPath();
+                ctx.arc(tx + 10, ty - 8, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ===== 绘制炮弹/鱼雷 =====
+        function drawProjectile(p) {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            if (p.type === 'basic') {
+                ctx.fillStyle = '#ffff00';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ffff00';
+                ctx.beginPath();
+                ctx.arc(0, 0, 6, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.type === 'cannon') {
+                ctx.fillStyle = '#ff8800';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ff8800';
+                ctx.beginPath();
+                ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.type === 'missile') {
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.type === 'normal_torpedo') {
+                ctx.fillStyle = '#00ff00';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00ff00';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 8, 4, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (p.type === 'super_torpedo') {
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0000';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 10, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // ===== 爆炸效果 =====
+        function drawExplosion(e) {
+            ctx.fillStyle = e.color;
+            ctx.globalAlpha = e.alpha;
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+
+        function createExplosion(x, y, color) {
+            explosions.push({ x, y, radius: 5, maxRadius: 30, color, alpha: 1 });
+        }
+
+        function updateExplosions() {
+            explosions.forEach((e, i) => {
+                e.radius += 2;
+                e.alpha -= 0.05;
+                if (e.alpha <= 0) explosions.splice(i, 1);
+            });
+        }
+
+        // ===== 碰撞检测 =====
+        function checkCollisions() {
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                let shipBox = { x: ship.x - 10, y: ship.y - 20, width: ship.width + 20, height: ship.height + 20 };
+                let enemyBox = { x: enemy.x - 10, y: enemy.y - 20, width: enemy.width + 20, height: enemy.height + 20 };
+
+                if (p.fromPlayer) {
+                    if (p.x > enemyBox.x && p.x < enemyBox.x + enemyBox.width &&
+                        p.y > enemyBox.y && p.y < enemyBox.y + enemyBox.height) {
+                        enemy.health -= DAMAGE[p.type] || 5;
+                        createExplosion(p.x, p.y, '#ff6600');
+                        projectiles.splice(i, 1);
+                        updateHealthBars();
+                        if (enemy.health <= 0) {
+                            alert('🎉 胜利！敌舰被击沉！');
+                            addGold(1); // 打赢+1金币
+                            setTimeout(() => location.reload(), 1500);
+                        }
+                        continue;
+                    }
+                } else {
+                    if (p.x > shipBox.x && p.x < shipBox.x + shipBox.width &&
+                        p.y > shipBox.y && p.y < shipBox.y + shipBox.height) {
+                        ship.health -= DAMAGE[p.type] || 5;
+                        createExplosion(p.x, p.y, '#ffff00');
+                        projectiles.splice(i, 1);
+                        updateHealthBars();
+                        if (ship.health <= 0) {
+                            alert('💀 失败！你的航母被击沉！');
+                            setTimeout(() => location.reload(), 1500);
+                        }
+                        continue;
+                    }
+                }
+
+                let range = p.fromPlayer ? RANGE[p.type] : ENEMY_RANGE[p.type];
+                if (!range) range = 500; // 鱼雷默认射程
+                let distance = p.fromPlayer ? (p.x - p.startX) : (p.startX - p.x);
+                if (distance >= range) {
+                    createExplosion(p.x, p.y, p.color);
+                    projectiles.splice(i, 1);
+                }
+
+                if (p.x > canvas.width || p.x < 0 || p.y > canvas.height || p.y < 0) {
+                    projectiles.splice(i, 1);
+                }
+            }
+        }
+
+        function updateHealthBars() {
+            document.getElementById('playerHealthBar').style.width = ship.health + '%';
+            document.getElementById('enemyHealthBar').style.width = enemy.health + '%';
+        }
+
+        // ===== 游戏主循环 =====
+        function gameLoop() {
+            drawOcean();
+            drawShip(ship, '#336699', false);
+            drawShip(enemy, '#993333', true);
+            drawTorpedoTube(); // 绘制鱼雷管
+            
+            projectiles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                drawProjectile(p);
+            });
+            
+            updateExplosions();
+            explosions.forEach(e => drawExplosion(e));
+            checkCollisions();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ===== 控制 =====
+        function moveLeft() {
+            if (ship.x > 5) ship.x -= 15;
+        }
+        function moveRight() {
+            if (ship.x < canvas.width - ship.width - 5) ship.x += 15;
+        }
+
+        // ===== 发射普通/导弹炮弹 =====
+        function fire() {
+            if (turrets.length === 0) {
+                alert('先安装炮台！');
+                return;
+            }
+            let now = Date.now();
+            turrets.forEach((turret, index) => {
+                let cooldown = COOLDOWN[turret.type];
+                let lastTime = lastFireTime[turret.type] || 0;
+                if (now - lastTime >= cooldown) {
+                    let px = ship.x + 20 + index * 35 + 10;
+                    let py = ship.y - 12;
+                    let colors = { basic: '#ffff00', cannon: '#ff8800', missile: '#ff0000' };
+                    let radii = { basic: 6, cannon: 8, missile: 12 };
+                    projectiles.push({
+                        x: px, y: py, vx: SPEED[turret.type], vy: 0,
+                        color: colors[turret.type],
+                        radius: radii[turret.type],
+                        type: turret.type,
+                        fromPlayer: true,
+                        startX: px
+                    });
+                    lastFireTime[turret.type] = now;
+                }
+            });
+        }
+
+        // ===== 发射鱼雷 =====
+        function fireTorpedo() {
+            if (!torpedoType) {
+                alert('请先购买鱼雷！');
+                return;
+            }
+            let px = ship.x + ship.width / 2;
+            let py = ship.y - 30;
+            let type = torpedoType;
+            let color = type === 'normal' ? '#00ff00' : '#ff0000';
+            let radius = type === 'normal' ? 8 : 10;
+            projectiles.push({
+                x: px, y: py, vx: SPEED[type + '_torpedo'], vy: 0,
+                color: color,
+                radius: radius,
+                type: type + '_torpedo',
+                fromPlayer: true,
+                startX: px
+            });
+            torpedoType = null;
+            document.getElementById('torpedoStatus').textContent = '无';
+        }
+
+        // ===== 敌人发射炮弹（射速已调慢） =====
+        setInterval(() => {
+            if (enemyTurrets.length === 0) return;
+            let now = Date.now();
+            enemyTurrets.forEach((turret, index) => {
+                let cooldown = COOLDOWN[turret.type];
+                let lastTime = lastEnemyFireTime[turret.type] || 0;
+                if (now - lastTime >= cooldown) {
+                    let px = enemy.x + 20 + index * 35 + 10;
+                    let py = enemy.y - 12;
+                    let colors = { basic: '#ff6666', cannon: '#ff8844', missile: '#ff0044' };
+                    let radii = { basic: 8, cannon: 10, missile: 14 };
+                    projectiles.push({
+                        x: px, y: py, vx: -SPEED[turret.type], vy: 0,
+                        color: colors[turret.type],
+                        radius: radii[turret.type],
+                        type: turret.type,
+                        fromPlayer: false,
+                        startX: px
+                    });
+                    lastEnemyFireTime[turret.type] = now;
+                }
+            });
+        }, 300); // ← 敌人射速变慢（300ms）
+
+        // ===== 启动 =====
+        initEnemyTurrets();
+        fetchGold(); // 启动时获取金币
+        gameLoop();
+    </script>
+</body>
+</html>
