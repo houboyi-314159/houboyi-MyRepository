@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>战舰模拟器 - 战斗模式 Beta</title>
+    <title>战舰模拟器 - 战斗模式 Beta（最终版·全部功能）</title>
     <style>
         * { margin: 0; padding: 0; }
         body { background: #001133; font-family: Arial, sans-serif; color: white; text-align: center; }
@@ -37,7 +37,7 @@
     <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
-    <h1>⚔️ 战舰模拟器 - 战斗模式 Beta</h1>
+    <h1>⚔️ 战舰模拟器 - 战斗模式 Beta（最终版）</h1>
     
     <!-- 金币显示 -->
     <div class="gold-display">💰 金币：<span id="goldDisplay">0</span></div>
@@ -65,7 +65,7 @@
 
     <!-- 鱼雷管控制面板 -->
     <div class="torpedo-panel turret-panel">
-        <h3>🚀 鱼雷管（两侧水下）</h3>
+        <h3>🚀 鱼雷管（两侧水下水平）</h3>
         <div class="turret-buttons">
             <button class="turret-btn" style="background:#006600" onclick="buyTorpedo('normal')">购买普通鱼雷（3💰）</button>
             <button class="turret-btn" style="background:#990000" onclick="buyTorpedo('super')">购买超级鱼雷（7💰）</button>
@@ -253,33 +253,33 @@
             });
         }
 
-        // ===== 鱼雷管在水里（两侧底部） =====
+        // ===== 鱼雷管（水平，在船体两侧水中）=====
         function drawTorpedoTube() {
-            // 左侧鱼雷管（水下）
-            let leftTx = ship.x - 5;
-            let leftTy = ship.y + ship.height;
+            // 左侧鱼雷管（水平，从船体左侧伸出）
+            let leftX = ship.x - 20;
+            let leftY = ship.y + ship.height;
             ctx.fillStyle = '#333';
-            ctx.fillRect(leftTx, leftTy, 10, 15);
+            ctx.fillRect(leftX, leftY, 20, 8);
             ctx.fillStyle = '#222';
-            ctx.fillRect(leftTx + 2, leftTy + 5, 6, 5);
+            ctx.fillRect(leftX, leftY + 2, 5, 4);
 
-            // 右侧鱼雷管（水下）
-            let rightTx = ship.x + ship.width - 5;
-            let rightTy = ship.y + ship.height;
+            // 右侧鱼雷管（水平，从船体右侧伸出）
+            let rightX = ship.x + ship.width;
+            let rightY = ship.y + ship.height;
             ctx.fillStyle = '#333';
-            ctx.fillRect(rightTx, rightTy, 10, 15);
+            ctx.fillRect(rightX, rightY, 20, 8);
             ctx.fillStyle = '#222';
-            ctx.fillRect(rightTx + 2, rightTy + 5, 6, 5);
+            ctx.fillRect(rightX + 15, rightY + 2, 5, 4);
 
-            // 如果有鱼雷，从管口射出（水中）
+            // 如果有鱼雷，从管口水平射出（水中）
             if (torpedoType) {
                 let color = torpedoType === 'normal' ? '#00ff00' : '#ff0000';
                 ctx.fillStyle = color;
                 ctx.beginPath();
-                ctx.ellipse(leftTx + 5, leftTy + 15, 6, 3, 0, 0, Math.PI * 2);
+                ctx.ellipse(leftX, leftY + 4, 6, 3, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.beginPath();
-                ctx.ellipse(rightTx + 5, rightTy + 15, 6, 3, 0, 0, Math.PI * 2);
+                ctx.ellipse(rightX + 20, rightY + 4, 6, 3, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
@@ -456,9 +456,9 @@
                 alert('请先购买鱼雷！');
                 return;
             }
-            let leftPx = ship.x - 5 + 5;
-            let rightPx = ship.x + ship.width - 5 + 5;
-            let py = ship.y + ship.height + 15;
+            let leftPx = ship.x - 20;
+            let rightPx = ship.x + ship.width + 20;
+            let py = ship.y + ship.height + 4;
             let type = torpedoType;
             let color = type === 'normal' ? '#00ff00' : '#ff0000';
             let radius = type === 'normal' ? 8 : 10;
