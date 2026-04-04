@@ -6,7 +6,7 @@
 
 | 项目 | 描述 | 主文件 | 状态 |
 | :--- | :--- | :--- | :--- |
-| [控制台应用](/控制台应用/) | 简单的 C++ 控制台应用程序，查询字符的 Unicode 编码。 | ConsoleApplication1.cpp/.exe | `v0.1.0-alpha` |
+| [MyPowershell](/Mypowershell/) | 简单的 C++ shell。 | Mypowershell.cpp/.exe | `v0.1.0-alpha` |
 | [记账本](/记账本/) | 可以记账，保存csv。 | main.py | `v1.0.0-​stable` |
 | [我的Set模块](/杂项/MySet.py) | 添加了自定义集合类。 | MySet.py | `v1.0.0-​stable` |
 | [战舰小游戏](/战舰小游戏/) | 可以利用程序玩小游戏。 | app.py/.exe | `v0.2.0-beta` |
