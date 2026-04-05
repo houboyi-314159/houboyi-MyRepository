@@ -30,7 +30,6 @@ void print_help_ls()
         << "  列出当前目录内容\n";
 }
 
-// 设置控制台文字颜色
 void set_color(int color)
 {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -39,8 +38,8 @@ void set_color(int color)
 
 int main()
 {
-    std::string path = "C:\\";
-    std::string new_path;
+    std::string path = fs::absolute("C:\\").string();
+    std::string input_path;
     std::string code;
     std::smatch match;
 
@@ -72,23 +71,25 @@ int main()
 
         else if (code == "cd ..")
         {
-            new_path = fs::path(path).parent_path().string();
-            path = new_path;
+            path = fs::absolute(fs::path(path).parent_path()).string();
         }
 
         else if (std::regex_match(code, match, cd_pattern))
         {
-            new_path = match[1].str();
+            // ✅ 路径标准化（解决 .\Windows 问题）
+            input_path = fs::absolute(
+                fs::path(path) / match[1].str()
+            ).string();
 
-            if (!fs::exists(new_path))
+            if (!fs::exists(input_path))
             {
-                set_color(12); // 红色
+                set_color(12);
                 std::cout << "路径不存在\n";
-                set_color(7);  // 恢复白色
+                set_color(7);
             }
             else
             {
-                path = new_path;
+                path = input_path;
             }
         }
 
